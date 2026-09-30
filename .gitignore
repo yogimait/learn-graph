@@ -17,6 +17,11 @@ dist-ssr
 *.db-wal
 *.db-shm
 
+# Environment / secrets — never commit
+.env
+.env.*
+*.pem
+
 # Windows junk
 Thumbs.db
 Desktop.ini

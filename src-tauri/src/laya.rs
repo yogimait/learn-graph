@@ -55,11 +55,23 @@ pub fn slug(name: &str) -> String {
         .collect()
 }
 
+/// Daemon address resolution precedence: `LAYA_DAEMON_URL` env var,
+/// then the user-editable `laya_url` setting, then the local default.
+fn daemon_base(db: &Db) -> String {
+    if let Ok(env_url) = std::env::var("LAYA_DAEMON_URL") {
+        let env_url = env_url.trim().to_string();
+        if !env_url.is_empty() {
+            return env_url;
+        }
+    }
+    let url = db.get_setting("laya_url");
+    if url.is_empty() { DEFAULT_DAEMON_URL.to_string() } else { url }
+}
+
 pub fn build_ctx(db: &Db) -> Result<ClassifyCtx, String> {
     let taxonomy = db.list_domains().map_err(|e| format!("db: {e}"))?;
-    let url = db.get_setting("laya_url");
     Ok(ClassifyCtx {
-        daemon_url: if url.is_empty() { DEFAULT_DAEMON_URL.to_string() } else { url },
+        daemon_url: daemon_base(db),
         domains: taxonomy
             .iter()
             .map(|d| {
@@ -89,10 +101,8 @@ pub fn build_ctx(db: &Db) -> Result<ClassifyCtx, String> {
 }
 
 pub fn daemon_health(db: &Db) -> Result<serde_json::Value, String> {
-    let url = db.get_setting("laya_url");
-    let url = if url.is_empty() { DEFAULT_DAEMON_URL.to_string() } else { url };
     // /health is GET-only on the daemon; POSTing returns 405 Method Not Allowed
-    ureq::get(&format!("{url}/health"))
+    ureq::get(&format!("{}/health", daemon_base(db)))
         .timeout(std::time::Duration::from_secs(5))
         .call()
         .map_err(|e| format!("daemon unreachable: {e}"))?
@@ -352,6 +362,29 @@ pub fn valid_classification(db: &Db, domain_id: i64, subdomain_id: Option<i64>) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn daemon_base_precedence() {
+        let path = std::env::temp_dir().join(format!("lg-daemon-base-{}.db", std::process::id()));
+        let db = crate::db::Db::open(&path).unwrap();
+        let prev = std::env::var("LAYA_DAEMON_URL").ok();
+
+        std::env::set_var("LAYA_DAEMON_URL", "http://env-override:9000");
+        assert_eq!(daemon_base(&db), "http://env-override:9000");
+
+        std::env::remove_var("LAYA_DAEMON_URL");
+        db.set_setting("laya_url", "http://from-settings:8081").unwrap();
+        assert_eq!(daemon_base(&db), "http://from-settings:8081");
+
+        db.set_setting("laya_url", "").unwrap();
+        assert_eq!(daemon_base(&db), DEFAULT_DAEMON_URL);
+
+        match prev {
+            Some(v) => std::env::set_var("LAYA_DAEMON_URL", v),
+            None => std::env::remove_var("LAYA_DAEMON_URL"),
+        }
+        let _ = std::fs::remove_file(&path);
+    }
 
     #[test]
     fn canonical_topic_normalizes() {

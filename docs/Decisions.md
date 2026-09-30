@@ -54,4 +54,8 @@ Dashboard shows only Sep 2026 (project start) → today — a fixed `PROJECT_STA
 
 Two bugs that made the dashboard lie at startup: `daemon_health` POSTed to `/health`, but the daemon route is GET-only (405 → badge always "offline"), and the config-defined webview can fire its first `invoke`s before `setup()` finishes `app.manage(AppState)` → "state not managed" rejections that React never retried (zeros everywhere). Fix: health uses GET with a 5s timeout, state is managed first thing in setup, and the frontend retries any "state not managed" failure once after 300ms (plus a manual Refresh button that re-runs every load).
 
+## Daemon address: env var beats settings, code holds only defaults
+
+No secrets exist in the app (classification is fully local), so there is no `.env`. The daemon address resolves as `LAYA_DAEMON_URL` env var → user-editable `laya_url` setting → local default constant — source code contains no effective address, and ops can repoint the app without touching the DB. A `.env` loader was skipped: a desktop app's config channel is the settings table, not a server-deploy convention.
+
 Related: [[Architecture]], [[Pipeline]], [[Laya-Integration]]
