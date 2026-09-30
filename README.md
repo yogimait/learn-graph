@@ -6,13 +6,13 @@ No cloud. No accounts. Everything stays on your machine.
 
 ## How it works
 
-1. **Capture** — press `Ctrl+` ` ` globally, type what you learned, hit Enter. The overlay closes instantly; classification happens in the background.
+1. **Capture** — press **Ctrl+`** anywhere, type what you learned, hit Enter. The overlay closes instantly; classification happens in the background.
 2. **Classify** — a local daemon ([Laya](docs/Laya-Integration.md)) scores the entry against your own domains (DSA, System Design, Web Development, ...) and subdomains (Trees, Graphs, DP, ...). High-confidence entries are auto-saved; low-confidence ones land in a review queue for one-click confirmation.
 3. **Visualize** — every entry feeds GitHub-style contribution heatmaps: one overall view plus one per domain, with intensity based on distinct topics practiced per day.
 
 ## Features
 
-- Global hotkey capture from anywhere (`Ctrl+``, configurable value, fixed binding in this version)
+- Global hotkey capture from anywhere (**Ctrl+`**; configurable value, fixed binding in this version)
 - Local, two-pass AI classification: domain first, then subdomain — with multi-domain tagging
 - Review queue for uncertain entries; manual corrections are persisted and reused as classification few-shots
 - GitHub-style heatmaps (overall + per domain), paged in batches instead of endless scrolling
