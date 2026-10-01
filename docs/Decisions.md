@@ -59,3 +59,9 @@ Two bugs that made the dashboard lie at startup: `daemon_health` POSTed to `/hea
 No secrets exist in the app (classification is fully local), so there is no `.env`. The daemon address resolves as `LAYA_DAEMON_URL` env var → user-editable `laya_url` setting → local default constant — source code contains no effective address, and ops can repoint the app without touching the DB. A `.env` loader was skipped: a desktop app's config channel is the settings table, not a server-deploy convention.
 
 Related: [[Architecture]], [[Pipeline]], [[Laya-Integration]]
+
+## Reclassify re-runs the model; review pre-selects; recent list follows the domain filter
+
+The first `reclassify` implementation only moved the event to the review queue — an already-classified entry sat there forever with empty checkboxes. Now `reclassify` re-runs the daemon classification (reset to `pending`, normal classify path), the review queue pre-selects the event's current classifications so confirming is one click, and Recent entries on a domain tab show only entries classified into that domain (Overall shows everything, backend-filtered, not client-side).
+
+Related: [[Laya-Integration]], [[Architecture]], [[Pipeline]]

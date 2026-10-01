@@ -374,10 +374,9 @@ impl Db {
         Ok(ids)
     }
 
-    /// Move an event back to the review queue (user disagreed with the model).
-    pub fn send_to_review(&self, id: i64) -> rusqlite::Result<()> {
-        self.0
-            .execute("UPDATE events SET status = 'needs_review' WHERE id = ?1", params![id])?;
+    /// Permanently delete an event and its classifications (FK cascade).
+    pub fn delete_event(&self, id: i64) -> rusqlite::Result<()> {
+        self.0.execute("DELETE FROM events WHERE id = ?1", params![id])?;
         Ok(())
     }
 
@@ -404,22 +403,37 @@ impl Db {
             .map(|o| o.expect("event exists"))
     }
 
-    pub fn list_events(&self, status: Option<&str>, limit: i64) -> rusqlite::Result<Vec<EventWithClassifications>> {
-        let sql = match status {
-            Some(_) => "SELECT id, raw_text, canonical_topic, event_date, status, confidence, source, created_at
-                        FROM events WHERE status = ?1 ORDER BY event_date DESC, id DESC LIMIT ?2",
-            None => "SELECT id, raw_text, canonical_topic, event_date, status, confidence, source, created_at
-                     FROM events ORDER BY event_date DESC, id DESC LIMIT ?1",
-        };
-        let mut stmt = self.0.prepare(sql)?;
-        let events: Vec<Event> = match status {
-            Some(s) => stmt
-                .query_map(params![s, limit], |r| self.row_to_event(r))?
-                .collect::<rusqlite::Result<_>>()?,
-            None => stmt
-                .query_map(params![limit], |r| self.row_to_event(r))?
-                .collect::<rusqlite::Result<_>>()?,
-        };
+    pub fn list_events(
+        &self,
+        status: Option<&str>,
+        domain_id: Option<i64>,
+        limit: i64,
+    ) -> rusqlite::Result<Vec<EventWithClassifications>> {
+        let mut sql = String::from(
+            "SELECT id, raw_text, canonical_topic, event_date, status, confidence, source, created_at
+             FROM events WHERE 1=1",
+        );
+        let mut args: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+        if let Some(s) = status {
+            sql.push_str(&format!(" AND status = ?{}", args.len() + 1));
+            args.push(Box::new(s.to_string()));
+        }
+        if let Some(d) = domain_id {
+            sql.push_str(&format!(
+                " AND id IN (SELECT event_id FROM classifications WHERE domain_id = ?{})",
+                args.len() + 1
+            ));
+            args.push(Box::new(d));
+        }
+        sql.push_str(" ORDER BY event_date DESC, id DESC");
+        sql.push_str(&format!(" LIMIT {limit}"));
+        let mut stmt = self.0.prepare(&sql)?;
+        let events: Vec<Event> = stmt
+            .query_map(
+                rusqlite::params_from_iter(args.iter().map(|a| a.as_ref())),
+                |r| self.row_to_event(r),
+            )?
+            .collect::<rusqlite::Result<_>>()?;
         let mut out = Vec::new();
         for e in events {
             out.push(EventWithClassifications {
@@ -500,7 +514,10 @@ mod tests {
     use crate::models::{NewDomain, NewSubdomain};
 
     fn temp_db() -> (Db, std::path::PathBuf) {
-        let dir = std::env::temp_dir().join(format!("learngraph-test-{}", std::process::id()));
+        // unique per call: parallel tests must not share one SQLite file
+        static COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let n = COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("learngraph-test-{}-{n}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("test.db");
         let _ = std::fs::remove_file(&path);
@@ -543,6 +560,12 @@ mod tests {
 
         let overall = db.daily_counts(None, "2026-09-01", "2026-09-30").unwrap();
         assert_eq!(overall[0].count, 2);
+
+        // list_events domain filter: only entries classified into the domain
+        let dsa_events = db.list_events(None, Some(dsa.domain.id), 10).unwrap();
+        assert_eq!(dsa_events.len(), 3);
+        let web_events = db.list_events(None, Some(web.domain.id), 10).unwrap();
+        assert_eq!(web_events.len(), 1);
     }
 
     #[test]
@@ -552,7 +575,7 @@ mod tests {
         assert_eq!(db.pending_events(10).unwrap(), vec![id]);
         db.set_event_status(id, "needs_review", 0.2).unwrap();
         assert!(db.pending_events(10).unwrap().is_empty());
-        let events = db.list_events(Some("needs_review"), 10).unwrap();
+        let events = db.list_events(Some("needs_review"), None, 10).unwrap();
         assert_eq!(events.len(), 1);
     }
 

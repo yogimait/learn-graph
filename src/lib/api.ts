@@ -23,9 +23,14 @@ export const api = {
   addSubdomain: (domainId: number, name: string) =>
     invoke<number>("add_subdomain", { sub: { domain_id: domainId, name } }),
   deleteSubdomain: (id: number) => invoke<void>("delete_subdomain", { id }),
-  listEvents: (status: string | null, limit: number) =>
-    invoke<EventWithClassifications[]>("list_events", { status, limit }),
-  sendToReview: (id: number) => invoke<void>("send_to_review", { id }),
+  listEvents: (status: string | null, limit: number, domainId?: number | null) =>
+    invoke<EventWithClassifications[]>("list_events", {
+      status,
+      limit,
+      domainId: domainId ?? null,
+    }),
+  reclassify: (id: number) => invoke<CaptureResult>("reclassify_event", { id }),
+  deleteEvent: (id: number) => invoke<void>("delete_event", { id }),
   dailyCounts: (domainId: number | null, from: string, to: string) =>
     invoke<DayCount[]>("daily_counts", { domainId, from, to }),
   getSettings: () => invoke<[string, string][]>("get_settings"),

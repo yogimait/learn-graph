@@ -74,7 +74,7 @@ export default function DashboardApp() {
       })
       .catch((e) => retrySoon(e));
     api
-      .listEvents(null, 8)
+      .listEvents(null, 8, selected)
       .then((e) => {
         if (!cancelled) setRecent(e);
       })
@@ -93,9 +93,12 @@ export default function DashboardApp() {
     .reduce((s, c) => s + c.count, 0);
 
   const reclassify = async (id: number) => {
-    await api.sendToReview(id);
-    setTab("review");
-    refresh();
+    try {
+      await api.reclassify(id);
+    } finally {
+      // success or daemon outage (event back to pending) — reflect it
+      refresh();
+    }
   };
 
   return (
@@ -190,7 +193,7 @@ export default function DashboardApp() {
                       <span className="tag pending">{e.status === "pending" ? "pending" : "unclassified"}</span>
                     )}
                   </span>
-                  <button className="link-btn reclassify" onClick={() => reclassify(e.id)} title="Move to review queue">
+                  <button className="link-btn reclassify" onClick={() => reclassify(e.id)} title="Re-run AI classification">
                     reclassify
                   </button>
                 </div>

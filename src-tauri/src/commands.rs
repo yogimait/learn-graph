@@ -73,10 +73,12 @@ pub fn delete_subdomain(state: State<'_, AppState>, id: i64) -> Result<(), Strin
 pub fn list_events(
     state: State<'_, AppState>,
     status: Option<String>,
+    domain_id: Option<i64>,
     limit: i64,
 ) -> Result<Vec<EventWithClassifications>, String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.list_events(status.as_deref(), limit).map_err(|e| e.to_string())
+    db.list_events(status.as_deref(), domain_id, limit)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -118,9 +120,20 @@ pub fn daemon_health(state: State<'_, AppState>) -> Result<serde_json::Value, St
 }
 
 #[tauri::command]
-pub fn send_to_review(state: State<'_, AppState>, id: i64) -> Result<(), String> {
+pub fn reclassify_event(
+    state: State<'_, AppState>,
+    app: AppHandle,
+    id: i64,
+) -> Result<CaptureResult, String> {
+    let result = pipeline::reclassify(&state, id)?;
+    let _ = app.emit(EVENT_CLASSIFIED, result.event_id);
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn delete_event(state: State<'_, AppState>, id: i64) -> Result<(), String> {
     let db = state.db.lock().map_err(|e| e.to_string())?;
-    db.send_to_review(id).map_err(|e| e.to_string())
+    db.delete_event(id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

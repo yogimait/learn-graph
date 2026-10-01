@@ -419,6 +419,15 @@ button:focus-visible {
   color: var(--text);
 }
 
+.remove {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.remove:hover {
+  color: var(--bad);
+}
+
 /* ---------- Review ---------- */
 
 .review-card {

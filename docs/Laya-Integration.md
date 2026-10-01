@@ -54,7 +54,8 @@ Dead ends verified: per-domain noul (noisy), score-rubric relevance (no discrimi
 ## Product mitigation (the design answer)
 
 - **High gate:** winner must clear `review_threshold 0.5` to auto-save; everything else lands in the review queue.
-- **Instant correction:** every Recent-entries row has a `reclassify` action (moves the event to the review queue); manual classifications are persisted with `source = 'review'` and feed future few-shots.
+- **Instant correction:** every Recent-entries row has a `reclassify` action that re-runs the daemon classification on that entry (resets it to `pending`, then the normal classify path). If the result still clears the gate it leaves the queue; if the daemon is down the event stays `pending` for the retry loop. Manual classifications from the review queue are persisted with `source = 'review'` and feed future few-shots.
+- **Review queue pre-selects the model's guess:** the checkboxes start from the event's current classifications, so agreeing is one click on Save.
 - **Prompt recipe stays tuned** for what the model does well (concrete activity entries) and the taxonomy stays user-owned.
 
 ## Race safety

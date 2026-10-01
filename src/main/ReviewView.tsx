@@ -17,7 +17,27 @@ export default function ReviewView({ onChanged }: Props) {
   const [drafts, setDrafts] = useState<Map<number, Draft["domains"]>>(new Map());
 
   useEffect(() => {
-    api.listEvents("needs_review", 500).then(setEvents);
+    api.listEvents("needs_review", 500).then((evs) => {
+      setEvents(evs);
+      // pre-select the model's current guess so confirming is one click
+      setDrafts(
+        new Map(
+          evs.map((e): [number, Draft["domains"]] => {
+            const seen = new Set<number>();
+            return [
+              e.id,
+              e.classifications
+                .filter((c) => {
+                  if (seen.has(c.domain_id)) return false;
+                  seen.add(c.domain_id);
+                  return true;
+                })
+                .map((c) => ({ domainId: c.domain_id, subdomainId: c.subdomain_id })),
+            ];
+          }),
+        ),
+      );
+    });
     api.listDomains().then(setDomains);
   }, []);
 
@@ -65,6 +85,13 @@ export default function ReviewView({ onChanged }: Props) {
     onChanged();
   };
 
+  const remove = async (eventId: number) => {
+    if (!confirm("Delete this entry permanently?")) return;
+    await api.deleteEvent(eventId);
+    setEvents((prev) => prev.filter((e) => e.id !== eventId));
+    onChanged();
+  };
+
   if (events.length === 0) {
     return (
       <div className="view">
@@ -84,6 +111,9 @@ export default function ReviewView({ onChanged }: Props) {
             <div className="review-top">
               <span className="recent-date">{e.event_date}</span>
               <span className="recent-text">{e.raw_text}</span>
+              <button className="link-btn remove" onClick={() => remove(e.id)} title="Delete this entry permanently">
+                remove
+              </button>
             </div>
             <div className="review-domains">
               {domains.map((d) => {

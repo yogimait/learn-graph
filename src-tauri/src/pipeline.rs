@@ -41,6 +41,18 @@ pub fn capture(state: &AppState, req: &CaptureRequest) -> Result<CaptureResult, 
     Ok(result)
 }
 
+/// Re-run classification on an existing event (user disagreed with the model).
+/// Resets to pending so claim_event succeeds; if the daemon is unreachable the
+/// event stays pending for the retry loop instead of being stuck in review.
+pub fn reclassify(state: &AppState, event_id: i64) -> Result<CaptureResult, String> {
+    {
+        let db = state.db.lock().map_err(|e| e.to_string())?;
+        db.set_event_status(event_id, "pending", 0.0)
+            .map_err(|e| e.to_string())?;
+    }
+    classify_pending(&state.db, event_id)
+}
+
 /// Classify one event: claim it atomically (pending -> classifying), snapshot
 /// ctx (short lock), HTTP calls (no lock), write outcome (short lock).
 /// Returns the final status; Err means the daemon was unreachable and the
